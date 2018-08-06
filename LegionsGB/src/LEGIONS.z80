@@ -1,0 +1,191 @@
+;------------
+;	LEGIONS GBC EDITION
+;	by yuyat
+;	tab 8
+
+	INCLUDE "HARDWARE.INC"
+
+;次のフレームのシーンを変更するマクロ
+SetScene: MACRO
+	ld	hl,\1
+	ld	a,h
+	ld	[b_SceneAdress],a
+	ld	a,l
+	ld	[b_SceneAdress + 1],a
+	ENDM
+
+;戻り先のシーンを変更するマクロ
+SetBackScene: MACRO
+	ld	hl,\1
+	ld	a,h
+	ld	[b_BackSceneAdress],a
+	ld	a,l
+	ld	[b_BackSceneAdress + 1],a
+	ENDM
+
+SECTION "CALL HL",ROM0[$18]
+	jp			hl								;$18
+
+SECTION "V Blank",ROM0[$40]
+	call	vsync
+	reti
+SECTION "LCDC Status Interupt",ROM0[$48]
+	reti
+SECTION "Timer Interupt",ROM0[$50]
+	reti
+SECTION "Serial Interupt",ROM0[$58]
+	reti
+SECTION "Keypad Interupt",ROM0[$60]
+	reti
+SECTION "Org $100",ROM0[$100]
+	nop							; 起動直後 SP=$FFFE
+	jp		begin
+	NINTENDO_LOGO          			         	; Nintendo graphic logo
+
+;Rom Header Info
+;				 123456789abcdef
+	DB			"Legions GB"            	; Game Name
+	DB			0,0,0,0,0               	; Padding to 15 characters
+	DB			$80                     	; 0 - MGB / $80 - Color compatible /
+	DB			0,0                     	; Game Maker Code
+	DB			0                       	; Game Unit Code
+	DB			CART_ROM_MBC5_RAM_BAT   	; Cart type
+	DB			CART_ROM_32M            	; ROM Size (in bits)
+	DB			CART_RAM_64K            	; RAM Size (in bits)
+	DB			0,1                     	; Maker ID
+	DB 			0                       	; Version=0
+	DB 			$00                     	; Complement check (important)
+	DW 			$0000                   	; Checksum (not important)
+
+	SECTION "Main Code",ROM0[$150]
+begin:
+	di
+	call	Initialize
+	call	InitRand8
+	;最初に呼び出すシーン
+	SetScene	b_SetBattleStart
+	call	ScreenOnVB
+	ei
+main:
+	ldh	a,[rLY]
+	cp	1
+	jp	nc,main
+	ld	a,[b_SceneAdress]
+	ld	h,a
+	ld	a,[b_SceneAdress + 1]
+	ld	l,a
+	call	nz,$0018					;jp [hl] になっている。実質 call [hl]
+	jp	main
+
+vsync:
+	call	$FF80		;スプライト処理
+	call	ReadButton
+	ret
+
+	include "GRAPHIC.z80"
+	include	"GBroutine.z80"
+	
+	;フェイズごとの処理
+	include "BattleStart.z80"	;ゲーム開始時
+	include "Zukan.z80"		;図鑑画面
+	
+
+SECTION "Work RAM",WRAM0[$C000]
+;システム変数
+_Pad			db		;ボタン入力  押されている間
+_PadDebounce		db		;            押された瞬間
+_Seed			db		;乱数のシード
+_Rand			db
+
+SECTION "WORK RAM0",WRAM0[$C100]
+OAM_BUFFER0	 			ds	160
+
+SECTION "Battle RAM",WRAMX[$C200]
+;バトル用変数
+;フェイズ管理
+b_SceneAdress		dw		;現在のフレームで実行するアドレス
+b_BackSceneAdress	dw		;戻る先のアドレス（開始処理を指定するように）
+
+b_TurnCount		db		;現在のターン数
+b_HavingTurn		db		;手番の所有者（0で先攻）
+b_PlayerTurn		db		;プレイヤーの先攻後攻（0で先攻）
+
+
+;領域管理
+b_FirstDeck		ds	40 *  2	;先攻プレイヤーのデッキ 
+b_FirstDeckTop		db		;先攻プレイヤーのデッキトップの位置
+b_SecondDeckTop		db		;後攻プレイヤーのデッキトップの位置
+
+b_FirstHand		ds	40 *  2	;先攻プレイヤーの手札
+b_SecondHand		ds	40 *  2	;後攻プレイヤーの手札
+b_FirstHandCount	db		;先攻プレイヤーの手札の枚数
+b_SecondHandCount	db		;後攻プレイヤーの手札の枚数
+
+b_FirstTimeLine		ds	40 *  4	;先攻プレイヤーのタイムライン
+b_SecondTimeLine	ds	40 *  4	;後攻プレイヤーのタイムライン
+					;2byte = カード番号
+					;1byte = 位相
+					;1byte = ウェイトゾーン番号
+b_FirstStandby		ds	16 *  2	;先攻プレイヤーのスタンバイゾーン
+b_SecondStandby		ds	16 *  2	;後攻プレイヤーのスタンバイゾーン
+					;2byte  = カード番号
+					;1byte  = 位相
+					;1byte  = HP
+					;1byte  = ATK
+					;10byte = キーワード
+					;1byte  = 空きメモリ
+b_FirstFieldUnit	ds	80 *  5 ;先攻フィールドユニット
+b_SecondFieldUnit	ds	80 *  5 ;後攻フィールドユニット
+					;マスター・ロード・左・中央・右ミニオンの順で並んでいる
+					;2byte  = カード番号
+					;1byte  = 位相
+					;1byte  = HP（ターン終了までのバフはここに代入する）
+					;1byte  = ATK（ターン終了までのバフはここに代入する）
+					;10byte = キーワード（ターン終了までのバフはここに代入する）
+					;1byte  = 常時効果のバフhp
+					;1byte  = 常時効果のバフatk
+					;10byte = 常時効果のキーワード
+					;10byte = 常時効果の禁止キーワード
+					;1byte  = 自ターン中のバフhp（相手ターン中効果は相手側の自ターン中効果として扱う）
+					;1byte  = 自ターン中のバフatk（相手ターン中効果は相手側の自ターン中効果として扱う）
+					;10byte = 自ターン中のキーワード（相手ターン中効果は相手側の自ターン中効果として扱う）
+					;10byte = 自ターン中の禁止キーワード（相手ターン中効果は相手側の自ターン中効果として扱う）
+					;1byte = 空きメモリ
+
+;コア管理
+b_FirstActiveCore	db		;先攻活性コア
+b_SecondActiveCore	db		;後攻活性コア
+b_FirstCanUseCore	db		;先攻使用可能コア
+b_SecondCanUseCore	db		;後攻使用可能コア
+b_FirstMasterCore	db		;先攻マスター上のコア
+b_SecondMasterCore	db		;後攻マスター上のコア
+b_FirstCoreCost		db		;先攻ロード上のコア
+b_SecondCoreCost	db		;後攻ロード上のコア
+b_FirstTotalCore	db		;先攻合計コア
+b_SecondTotalCore	db		;後攻合計コア
+b_FirstTLCore		ds	 4	;先攻タイムライン上のコア
+b_SecondTLCore		ds	 4	;先攻タイムライン上のコア
+
+;図鑑画面用領域
+z_Position		db		;図鑑の表示する位置
+z_Page			db		;効果テキスト枠のページ数
+
+;--------------------------------------------------------------------------------------------------
+SECTION "HI-RAM",HRAM[$FF80]
+SPRITE_ROUTINE			ds	SpriteRoutineEnd - SpriteRoutine
+
+SECTION "GRAPHICS",ROMX[$4000],BANK[1]
+;グラフィックデータ
+;共通グラフィック
+	include "g_common.Z80"		;共通グラフィックデータ
+	include "g_sprite.Z80"		;共通スプライト
+
+;図鑑用グラフィック
+	include "g_zukan.Z80"		;図鑑モード用グラフィック
+	include "g_moji.Z80"		;図鑑で表示を行う文字（表示確認用）
+	
+	include "g_cg123.Z80"		;カード画像用グラフィック
+	include "g_mg123.Z80"		;ミニキャラ用グラフィック
+	include "g_cg123_map.Z80"	;カード画像用マップ
+	include "g_mg123_map.Z80"	;ミニキャラ用マップ
+	

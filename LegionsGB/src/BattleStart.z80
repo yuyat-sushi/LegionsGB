@@ -1,0 +1,49 @@
+;------------
+;	BattleStart
+;	バトルスタート時の画面の処理
+;	by yuyat
+
+;---------------------------------------------------------------------------
+;バトル用共通グラフィックパターン定義
+;バトル用に使う共通グラフィックを実装する
+;---------------------------------------------------------------------------
+b_SetBattleStart:
+	call	ScreenOff
+	;VRAMバンクを0に
+	xor	a
+	ldh	[rVBK],a
+	;グラフィック読み込み
+	ld	hl,g_Common
+	ld	de,_VRAM + $800
+	ld	bc,128 * 16
+	call	LDIR
+	;グラフィック読み込み
+	ld	hl,g_Sprite
+	ld	de,_VRAM
+	ld	bc,128 * 16
+	call	LDIR
+	
+	;VRAMバンクを1に
+	ld	a,1
+	ldh	[rVBK],a
+
+	;VRAMバンクを0に
+	xor	a
+	ldh	[rVBK],a
+	;カラー定義
+	ld	d,16
+	ld	e,48
+	ld	hl,CommonPal
+	call	g_SetBGPallet
+	ld	d,8
+	ld	e,56
+	ld	hl,CommonSPPal
+	call	g_SetSPPallet
+	call	ScreenOnVB
+	;繰り返し処理へ移動
+	SetScene	b_BattleStart
+	ret
+
+b_BattleStart:
+	SetScene	b_SetZukan
+	ret
