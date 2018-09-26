@@ -1,0 +1,78 @@
+;------------
+;	BattleStart
+;	バトルスタート時の画面の処理
+;	by yuyat
+
+;---------------------------------------------------------------------------
+;バトル用共通グラフィックパターン定義
+;バトル用に使う共通グラフィックを実装する
+;---------------------------------------------------------------------------
+b_SetBattleStart:
+	call	ScreenOff
+	;VRAMバンクを0に
+	xor	a
+	ldh	[rVBK],a
+	;グラフィック読み込み
+	ld	hl,g_Common
+	ld	de,_VRAM + $800
+	ld	bc,128 * 16
+	call	LDIR
+	;グラフィック読み込み
+	ld	hl,g_Sprite
+	ld	de,_VRAM
+	ld	bc,128 * 16
+	call	LDIR
+
+	;カラー定義
+	ld	d,16
+	ld	e,48
+	ld	hl,CommonPal
+	call	g_SetBGPallet
+	ld	d,8
+	ld	e,56
+	ld	hl,CommonSPPal
+	call	g_SetSPPallet
+	call	ScreenOnVB
+
+	;バトル部分初期化
+	xor	a
+	ld	[rRAMB],a
+	xor	a
+	ld	hl,$A000				;カートリッジ側 RAM ($A000-$BFFF)クリア #0のみ使用
+	ld	bc,$2000
+	call		Mem_Set
+	
+	;先攻プレイヤー初期処理
+	xor	a
+	ld	[b_HavingTurn],a
+	;マスターのライフ20
+	ld	a,20
+	ld	[b_fFieldUnit + 4],a
+	;5枚ドロー
+	REPT	5
+	call	CardDraw
+	ENDR
+	
+	;後攻プレイヤー初期処理
+	ld	a,1
+	ld	[b_HavingTurn],a
+	;マスターのライフ20
+	ld	a,20
+	ld	[b_sFieldUnit + 4],a
+	;5枚ドロー
+	REPT	5
+	call	CardDraw
+	ENDR
+	;先攻プレイヤーから開始するようにする
+	xor	a
+	ld	[b_HavingTurn],a
+	
+	;繰り返し処理へ移動
+	ld	a,$FF
+	ld	[f_MainPhaseScene],a
+	SetScene	b_BattleStart
+	ret
+
+b_BattleStart:
+	SetScene	b_SetStartPhase
+	ret

@@ -1,0 +1,27 @@
+;------------
+;	End
+;	エンドフェイズの処理
+;	by yuyat
+
+bf_SetEndPhase:
+	;ウィンドウ面非表示
+	ld	a,144
+	ldh	[rWY],a					;Window Y 非表示
+	ld	a,168
+	ldh	[rWX],a					;Window X 非表示
+	SetScene	bf_EndPhase
+	ret
+
+bf_EndPhase
+	;操作
+	;ボタン入力があれば次のプレイヤーへ移る
+	ld	a,[_PadDebounce]
+	cp	0
+	jp	z,.skip
+	;ボタンが押された時、処理を行う
+	ld	a,[b_HavingTurn]
+	xor	1
+	ld	[b_HavingTurn],a
+	SetScene	b_SetStartPhase
+.skip
+	ret

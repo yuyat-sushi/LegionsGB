@@ -1,0 +1,498 @@
+;------------
+;	Graphic
+;	Vramの処理
+;	by yuyat
+
+;----------------------------------------------------------------------------
+;マップ定義
+;bc = 幅・高さ
+;de = 読み込み元アドレス
+;hl = 定義先アドレス
+;----------------------------------------------------------------------------
+g_SetTileMap:
+	push	bc	;幅と高さを記憶
+
+.loop:
+	ld	a,[de]	;書き込み処理
+	inc	de
+	ld	[hl+],a
+	dec	b
+	jr	nz,.loop
+
+	ld	a,c	;幅のリセット
+	pop	bc	
+	ld	c,a
+	push	bc
+	
+	ld	a,b	;b = 32の時の２重ループ防止
+	cp	a,32
+	jr	z,.skip
+	
+	ld	a,l	;32バイト分進める
+	sub	a,b	;32 - 横幅
+	add	a,32
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+	
+.skip:
+	dec	c
+	jr	nz,.loop
+
+	pop	bc
+	ret
+
+;----------------------------------------------------------------------------
+;タイル定義（特定の範囲を塗りつぶす）
+;bc = 幅・高さ
+;d = タイル番号
+;hl = 定義先アドレス
+;----------------------------------------------------------------------------
+g_SetTileFill:
+	push	bc	;幅と高さを記憶
+
+.loop:
+	ld	a,d	;書き込み処理
+	ld	[hl+],a
+	dec	b
+	jr	nz,.loop
+
+	ld	a,c	;幅のリセット
+	pop	bc	
+	ld	c,a
+	push	bc
+	
+	ld	a,b	;b = 32の時の２重ループ防止
+	cp	a,32
+	jr	z,.skip
+	
+	ld	a,l	;32バイト分進める
+	sub	a,b	;32 - 横幅
+	add	a,32
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+	
+.skip:
+	dec	c
+	jr	nz,.loop
+
+	pop	bc
+	ret
+
+;----------------------------------------------------------------------------
+;カードマップ定義
+;40~127番を使用
+;8x11のサイズで読み込み
+;de = 読み込み元アドレス
+;hl = 定義先アドレス
+;----------------------------------------------------------------------------
+g_SetCardMap:
+	ld	bc,$080B
+.loop:
+	ld	a,[de]	;書き込み処理
+	inc	de
+	add	a,40
+	ld	[hl+],a
+	dec	b
+	jr	nz,.loop
+
+	ld	b,8	;幅のリセット
+
+	ld	a,l	;32バイト分進める
+	sub	a,b	;32 - 横幅
+	add	a,32
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+
+	dec	c
+	jr	nz,.loop
+	ret
+
+;----------------------------------------------------------------------------
+;ミニキャラマップ定義
+;40~127番を使用
+;8x11のサイズで読み込み
+;de = 読み込み元アドレス
+;hl = 定義先アドレス
+;----------------------------------------------------------------------------
+g_SetCharaMap:
+	ld	bc,$0404
+.loop:
+	ld	a,[de]	;書き込み処理
+	inc	de
+	add	a,128
+	ld	[hl+],a
+	dec	b
+	jr	nz,.loop
+
+	ld	b,4	;幅のリセット
+
+	ld	a,l	;32バイト分進める
+	sub	a,b	;32 - 横幅
+	add	a,32
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+
+	dec	c
+	jr	nz,.loop
+	ret
+
+;----------------------------------------------------------------------------
+;ミニカードマップ定義
+;de = カード番号
+;hl = 定義先アドレス
+;----------------------------------
+;b = コスト
+;c = 属性
+;d = カテゴリー
+;e = 一時退避用領域
+;bcにコスト・属性値が返される（この後にSetMiniCardColするため）
+;----------------------------------------------------------------------------
+g_SetMiniCardMap:
+	push	hl
+	;カードデータ読み込み
+	ld	a,d			;バンク切り替え
+	ld	[rROMB0],a
+	ld	a,e
+	add	a,64
+	ld	h,a
+	ld	a,40
+	ld	l,a
+	ld	a,[hl+]			;カテゴリー(40番目)をdに
+	ld	d,a
+	ld	a,[hl+]			;色(41番目)をcに
+	ld	c,a
+	ld	a,[hl]			;コスト(42番目)をbに
+	ld	b,a
+	ld	a,1			;バンク切り替え
+	ld	[rROMB0],a
+	pop	hl
+	push	bc
+	push	hl
+	;コストタイル書き込み
+	ld	a,$C0
+	add	a,b
+	ld	[hl+],a
+	;属性タイル書き込み
+	;もし複属性であれば、配置パターンを+1する
+	ld	a,c
+	and	$55
+	ld	e,a
+	ld	a,c
+	srl	a
+	and	$55
+	add	a,e
+	ld	c,a
+	and	$33
+	ld	e,a
+	ld	a,c
+	srl	a
+	srl	a
+	and	$33
+	add	a,e
+	ld	c,a
+	and	$0F
+	ld	e,a
+	ld	a,c
+	srl	a
+	srl	a
+	srl	a
+	srl	a
+	and	$0F
+	add	a,e
+	ld	c,a
+	cp	1
+	ld	a,0
+	jr	z,.skip
+	inc	a
+.skip
+	add	a,$CB
+	ld	[hl+],a
+	;カテゴリータイル書き込み
+	ld	a,l	;32バイト分進める
+	add	a,30
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+	ld	a,d
+	add	a,a	;4倍にする
+	add	a,a
+	
+	add	a,$B0
+	ld	e,a
+	ld	bc,$0202
+.loop:
+	ld	[hl+],a
+	inc	a	;書き込み処理
+	dec	b
+	jr	nz,.loop
+
+	ld	b,2	;幅のリセット
+	ld	e,a
+
+	ld	a,l	;32バイト分進める
+	add	a,30
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+	
+	ld	a,e
+	dec	c
+	jr	nz,.loop
+	pop	hl
+	pop	bc
+
+	;色の定義
+	;書き込み位置のセット
+	ld	a,l	;320バイト分進める
+	add	a,$40
+	ld	l,a
+	ld	a,h
+	adc	a,$02
+	ld	h,a
+	;色の判定
+	ld	d,5
+	ld	a,c
+	cp	1
+	jr	nz,.skip1
+	ld	d,0
+.skip1
+	cp	2
+	jr	nz,.skip2
+	ld	d,1
+.skip2
+	cp	4
+	jr	nz,.skip3
+	ld	d,2
+.skip3
+	cp	8
+	jr	nz,.skip4
+	ld	d,3
+.skip4
+	cp	16
+	jr	nz,.skip5
+	ld	d,4
+.skip5
+	ld	a,d
+	ld	bc,$0203
+.loop2:
+	ld	[hl+],a	;書き込み処理
+	dec	b
+	jr	nz,.loop2
+
+	ld	b,2	;幅のリセット
+
+	ld	a,l	;32バイト分進める
+	add	a,30
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+	
+	ld	a,d
+	
+	dec	c
+	jr	nz,.loop2
+	ret
+
+;----------------------------------------------------------------------------
+;2桁の数字を2マスのBGに定義
+;d = 変換したい数字
+;e = 数字の0のBG番号
+;hl = 定義先アドレス
+;----------------------------------------------------------------------------
+g_Set2BCDBG:
+	;数字をBCDにする
+	push	de
+	push	hl
+	ld	h,0
+	ld	l,d
+	call	bin2dec
+	pop	hl
+	pop	de
+	ld	a,[_Decimal + 3]
+	cp	0
+	jp	z,.skip			;10の位が0の時、数字を配置しない
+	add	a,e
+.skip:
+	ld	[hl+],a
+	ld	a,[_Decimal + 4]
+	add	a,e
+	ld	[hl],a
+	ret
+
+;----------------------------------------------------------------------------
+;2桁の数字を1マスのBGに定義
+;グラフィック書き換えで実装する
+;d = 変換したい数字
+;hl = 定義先アドレス
+;----------------------------------------------------------------------------
+g_Set1BCDBG:
+	;数字をBCDにする
+	push	de
+	push	hl
+	ld	h,0
+	ld	l,d
+	call	bin2dec
+	pop	hl
+	pop	de
+	;描画を行う
+	ret
+
+
+;----------------------------------------------------------------------------
+;BGパレット定義
+;d = 色数 * 2
+;e = 開始カラー * 2
+;hl = 読み込み元アドレス
+;----------------------------------------------------------------------------
+g_SetBGPallet:
+	ld	a,e
+	add	a,$80
+	ldh	[rBCPS],a
+	ld	b,d
+.BG:
+	ld	a,[hl+]
+	ldh	[rBCPD],a
+	dec	b
+	jr	nz,.BG
+	ret
+
+;----------------------------------------------------------------------------
+;SPRITEパレット定義
+;d = 色数 * 2
+;e = 開始カラー * 2
+;hl = 読み込み元アドレス
+;----------------------------------------------------------------------------
+g_SetSPPallet:
+	ld	a,e
+	add	a,$80
+	ldh	[rOCPS],a
+	ld	b,d
+.SP:
+	ld	a,[hl+]
+	ldh	[rOCPD],a
+	dec	b
+	jr	nz,.SP
+	ret
+
+;---------------------------------------------------------------------------
+;フィールド画面のVBLANK中に呼び出す処理
+;---------------------------------------------------------------------------
+g_VBField:
+	;VRAMバンクを0に
+	xor	a
+	ldh	[rVBK],a
+	;アニメ用マップをDMAで描画
+	LD	a,$D0
+	LDH	[rHDMA1],a
+	LD	a,$00
+	LDH	[rHDMA2],a
+	LD	a,$98
+	LDH	[rHDMA3],a
+	LD	a,$E0
+	LDH	[rHDMA4],a
+	LD	a,$13
+	LDH	[rHDMA5],a
+.wait1:
+	ldh	a,[rHDMA5]
+	bit	7,a
+	JR	z,.wait1
+
+	;メニュー用マップをDMAで描画
+	LD	a,$D1
+	LDH	[rHDMA1],a
+	LD	a,$40
+	LDH	[rHDMA2],a
+	LD	a,$9C
+	LDH	[rHDMA3],a
+	LD	a,$00
+	LDH	[rHDMA4],a
+	LD	a,$0F
+	LDH	[rHDMA5],a
+.wait2:
+	ldh	a,[rHDMA5]
+	bit	7,a
+	JR	z,.wait2
+
+	;VRAMバンクを1に
+	ld	a,1
+	ldh	[rVBK],a
+	;メニュー用マップアトリをDMAで描画
+	LD	a,$D3
+	LDH	[rHDMA1],a
+	LD	a,$80
+	LDH	[rHDMA2],a
+	LD	a,$9C
+	LDH	[rHDMA3],a
+	LD	a,$00
+	LDH	[rHDMA4],a
+	LD	a,$0F
+	LDH	[rHDMA5],a
+.wait3:
+	ldh	a,[rHDMA5]
+	bit	7,a
+	JR	z,.wait3
+
+	;VRAMバンクを0に
+	xor	a
+	ldh	[rVBK],a
+
+	;パレットを再設定する
+	call	bf_HBPalChange
+	ret
+
+;---------------------------------------------------------------------------
+;フィールド用パレット→メニュー用パレットの変更
+;HBLANK中に呼び出す(LYC = WY)
+;---------------------------------------------------------------------------
+bf_HBPalChange:
+	ld	hl,ElementPal
+	ld	a,$80
+	ldh	[rBCPS],a
+	ld	b,48
+.BG:
+	ld	a,[hl+]
+	ldh	[rBCPD],a
+	dec	b
+	jr	nz,.BG
+	ret
+
+;---------------------------------------------------------------------------
+;スプライトブラーをさせる
+;HBLANK中に呼び出す(LYC = 64)
+;---------------------------------------------------------------------------
+bf_HBSpriteBler:
+	ret
+
+;パレット用マクロ
+SetPal: MACRO							; #1F0A08 っぽい表記ただし RGB の各値は 31>n>0
+	dw	((\1 & $FF)<<10) | ((\1 & $00FF00)>>3) | ((\1 & $FF0000)>>16)
+	dw	((\2 & $FF)<<10) | ((\2 & $00FF00)>>3) | ((\2 & $FF0000)>>16)
+	dw	((\3 & $FF)<<10) | ((\3 & $00FF00)>>3) | ((\3 & $FF0000)>>16)
+	dw	((\4 & $FF)<<10) | ((\4 & $00FF00)>>3) | ((\4 & $FF0000)>>16)
+ENDM
+
+ElementPal:
+	SetPal	$1F1F1F, $18041B, $0E0210, $000000	;黒属性
+	SetPal	$1F1F1F, $1F0404, $120000, $000000	;赤属性
+	SetPal	$1F1F1F, $1D1C08, $151101, $000000	;白属性
+	SetPal	$1F1F1F, $001C0B, $001307, $000000	;緑属性
+	SetPal	$1F1F1F, $14121F, $050C1F, $000000	;青属性
+	SetPal	$1F1F1F, $141414, $0E0E0E, $000000	;グレー
+
+CommonPal:
+	SetPal	$1F1F1F, $1C1500, $140000, $000000	;システムカラー1(金色風　枠に使う)
+	SetPal	$1F1F1F, $1F0000, $00001F, $000000	;システムカラー2(黒赤青　文字に使う)
+
+CommonSPPal:
+	SetPal	$1F1F1F, $1F1F1F, $101010, $000000	;システムSPカラー(白灰黒　カーソルに使う)

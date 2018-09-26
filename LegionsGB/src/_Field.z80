@@ -1,0 +1,137 @@
+;------------
+;	Field
+;	フィールド画面の処理
+;	by yuyat
+
+;---------------------------------------------------------------------------
+;フィールド画面を最初に描画するときの処理
+;---------------------------------------------------------------------------
+bf_SetField:
+	call	ScreenOff
+	;フィールド画面用BGを定義
+	;VRAMバンクを0に
+	xor	a
+	ldh	[rVBK],a
+	;図鑑用グラフィック読み込み
+	ld	hl,g_Field
+	ld	de,_VRAM + $1000
+	ld	bc,128 * 16
+	call	LDIR
+	;フィールドマップ定義
+	ld	b,20
+	ld	c,24
+	ld	de,FieldMap
+	ld	hl,_SCRN0
+	call	g_SetTileMap
+
+	;VRAMバンクを1に
+	ld	a,1
+	ldh	[rVBK],a
+	;フィールドアトリビュート定義
+	ld	b,20
+	ld	c,24
+	ld	de,FieldColMap
+	ld	hl,_SCRN0
+	call	g_SetTileMap
+	
+	;VRAMバンクを0に
+	xor	a
+	ldh	[rVBK],a
+	;毎フレーム更新用バッファ初期定義
+	;フィールドマップ定義
+	ld	b,20
+	ld	c,10
+	ld	de,FieldDMAMap
+	ld	hl,FIELDMAP_BUFFER
+	call	g_SetTileMap	
+	;フィールドアトリビュート定義
+	ld	b,20
+	ld	c,10
+	ld	de,FieldDMAColMap
+	ld	hl,FIELDATRMAP_BUFFER
+	call	g_SetTileMap
+	
+	;BGのY座標変更
+	ld	a,56
+	ld	[rSCY],a
+	
+	call	ScreenOnVB
+	ret
+
+;---------------------------------------------------------------------------
+;フィールド画面を毎フレーム描画するときの処理
+;---------------------------------------------------------------------------
+bf_Field:
+	;描画領域を白塗りする
+	ld	b,4
+	ld	c,10
+	ld	d,$00
+	ld	hl,FIELDMAP_BUFFER + 8
+	call	g_SetTileFill
+	
+	;自フィールド
+	;ステータスアドレス指定
+	ld	a,[b_cFieldUnit + 1]	;中央ミニオンの場所に指定する
+	add	240
+	ld	l,a
+	ld	a,[b_cFieldUnit]
+	adc	a,0
+	ld	h,a
+	;カード番号を読み込む
+	ld	a,[hl]
+	cp	0
+	jp	z,.skip1		;もしフィールドにカードデータが存在しない場合、描画を行わない
+	;フィールドにATKとHPのアイコンを描画する
+	ld	de,FIELDMAP_BUFFER + 296		;キャラ指定
+	ld	a,$83
+	ld	[de],a
+	ld	de,FIELDMAP_BUFFER + 298
+	ld	a,$84
+	ld	[de],a
+	;フィールドにATKとHPの数字を描画する
+	inc	hl
+	inc	hl
+	inc	hl
+	ld	de,FIELDMAP_BUFFER + 297		;キャラ指定
+	ld	a,[hl+]
+	add	a,$D0
+	ld	[de],a
+	ld	de,FIELDMAP_BUFFER + 299
+	ld	a,[hl]
+	add	a,$D0
+	ld	[de],a
+.skip1
+
+	;相手フィールド
+	;ステータスアドレス指定
+	ld	a,[b_oFieldUnit + 1]	;中央ミニオンの場所に指定する
+	add	240
+	ld	l,a
+	ld	a,[b_oFieldUnit]
+	adc	a,0
+	ld	h,a
+	;カード番号を読み込む
+	ld	a,[hl]
+	cp	0
+	jp	z,.skip2		;もしフィールドにカードデータが存在しない場合、描画を行わない
+	;フィールドにATKとHPのアイコンを描画する
+	ld	de,FIELDMAP_BUFFER + 136		;キャラ指定
+	ld	a,$83
+	ld	[de],a
+	ld	de,FIELDMAP_BUFFER + 138
+	ld	a,$84
+	ld	[de],a
+	;フィールドにATKとHPの数字を描画する
+	inc	hl
+	inc	hl
+	inc	hl
+	ld	de,FIELDMAP_BUFFER + 137		;キャラ指定
+	ld	a,[hl+]
+	add	a,$D0
+	ld	[de],a
+	ld	de,FIELDMAP_BUFFER + 139
+	ld	a,[hl]
+	add	a,$D0
+	ld	[de],a
+.skip2
+	ret

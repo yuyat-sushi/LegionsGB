@@ -1,0 +1,71 @@
+;------------
+;	Start
+;	スタート画面の処理
+;	by yuyat
+
+b_SetStartPhase:
+	;現在のプレイヤーのアドレス設定
+	;今回は手札とフィールドと手札カウントのアドレスのみ
+	ld	a,[b_HavingTurn]	;先攻か後攻かを指定、レジスタbに格納
+	ld	b,a
+
+	;自プレイヤー側の処理
+	;手札のアドレス
+	ld	hl,b_fHand
+	ld	a,h
+	add	a,b
+	add	a,b
+	add	a,b
+	ld	[b_cHand],a
+	ld	a,l
+	ld	[b_cHand + 1],a
+	;フィールドのアドレス
+	ld	hl,b_fFieldUnit
+	ld	a,h
+	add	a,b
+	add	a,b
+	add	a,b
+	ld	[b_cFieldUnit],a
+	ld	a,l
+	ld	[b_cFieldUnit + 1],a
+	;手札カウント
+	ld	hl,b_fHandCount
+	ld	a,h
+	add	a,b
+	add	a,b
+	add	a,b
+	ld	[b_cHandCount],a
+	ld	a,l
+	ld	[b_cHandCount + 1],a
+
+	;相手プレイヤー側の処理
+	;手札のアドレス
+	ld	hl,b_sHand
+	ld	a,h
+	sub	a,b
+	sub	a,b
+	sub	a,b
+	ld	[b_oHand],a
+	ld	a,l
+	ld	[b_oHand + 1],a
+	;フィールドのアドレス
+	ld	hl,b_sFieldUnit
+	ld	a,h
+	sub	a,b
+	sub	a,b
+	sub	a,b
+	ld	[b_oFieldUnit],a
+	ld	a,l
+	ld	[b_oFieldUnit + 1],a
+	;手札カウント
+	ld	hl,b_sHandCount
+	ld	a,h
+	sub	a,b
+	sub	a,b
+	sub	a,b
+	ld	[b_oHandCount],a
+	ld	a,l
+	ld	[b_oHandCount + 1],a
+	;コアフェイズ（今回はドローフェイズへ）
+	SetScene	b_SetDrawPhase
+	ret

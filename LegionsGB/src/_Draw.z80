@@ -1,0 +1,9 @@
+;------------
+;	Draw
+;	ドローフェイズ時の画面の処理
+;	by yuyat
+
+b_SetDrawPhase:
+	Call	CardDraw
+	SetScene	bf_SetHandMenu
+	ret

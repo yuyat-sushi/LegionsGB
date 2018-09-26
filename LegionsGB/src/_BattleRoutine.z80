@@ -1,0 +1,167 @@
+;------------
+;	BattleRoutine
+;	バトル用の基本的な処理
+;	by yuyat
+
+
+;カードのドロー
+;今回はユニットテーブルからランダムにカードを追加するだけ
+CardDraw:
+	;乱数を出す
+	call	Rand8
+.loop:
+	cp	a,10			;aを流用
+	jp	c,.jump
+	sub	a,10
+	jp	.loop
+.jump:
+	add	a,a			;2倍にする
+	;ユニットテーブルからカード番号を選ぶ
+	ld	hl,d_Deck
+	add	a,l
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+	ld	a,[hl+]
+	ld	c,a
+	ld	a,[hl]
+	ld	b,a
+	push	bc
+	;カード番号を手札メモリに代入する
+	;hlにアドレスを指定する
+	ld	hl,b_fHand
+	ld	a,[b_HavingTurn]	;先攻か後攻かを指定、レジスタcに格納
+	ld	c,a
+	add	a,c
+	add	a,c
+	add	a,h
+	ld	h,a
+	ld	de,b_fHandCount		;一番右側に存在する手札を指定
+	ld	a,d
+	add	a,c
+	add	a,c
+	add	a,c
+	ld	d,a
+	ld	a,[de]			;deにある手札カウントを指定
+	add	a,a			;2倍にする
+	add	a,l
+	ld	l,a
+	ld	a,h
+	adc	a,0
+	ld	h,a
+	;hlにカード番号を書き込む
+	pop	bc
+	ld	a,b			;カードデータ指定
+	ld	[hl+],a
+	ld	a,c
+	ld	[hl],a
+	;手札カウントを増やす
+	ld	a,[de]			;deにある手札カウントを指定
+	inc	a
+	ld	[de],a
+	ret
+
+;手札の除外
+;f_HandPositionにある手札を選んでクリアした後、手札情報をシフトして書き換える
+DisCard:
+	;現在選んでいるカードの位置の読み込み
+	ld	a,[f_HandPosition]	;手札位置をレジスタeに格納
+	ld	e,a
+	ld	a,[b_cHand + 1]		;手札配列を元にSelectCardにカード種を読み込む
+	add	a,e
+	add	a,e
+	ld	c,a
+	ld	a,[b_cHand]
+	adc	a,0
+	ld	b,a
+	;選択されているカードアドレスをクリア
+	xor	a
+	ld	[bc],a			;手札の位置に0を定義
+	inc	bc
+	ld	[bc],a			;手札の位置に0を定義
+	dec	bc
+	;手札情報をシフトさせる
+	ld	a,[b_cHandCount]	;シフトする枚数を指定する
+	ld	h,a
+	ld	a,[b_cHandCount + 1]
+	ld	l,a
+	ld	a,[hl]
+	sub	a,e			;手札枚数-手札位置-1
+	dec	a
+	jp	z,.skip			;結果がゼロの時、スキップする
+	ld	d,a			;ループ回数指定
+.loop:
+	;一つ先のカード番号をコピーする
+	ld	h,b
+	ld	l,c
+	inc	hl
+	inc	hl
+	ld	a,[hl+]
+	ld	[bc],a
+	inc	bc
+	ld	a,[hl]
+	ld	[bc],a
+	inc	bc
+	dec	d
+	jp	nz,.loop
+.skip:
+	;枚数を一枚減らす
+	ld	a,[b_cHandCount]
+	ld	h,a
+	ld	a,[b_cHandCount + 1]
+	ld	l,a
+	ld	a,[hl]
+	dec	a
+	ld	[hl],a
+	ret
+
+;ユニットの配置
+UnitSet:
+	;配置アドレス指定
+	ld	a,[b_cFieldUnit + 1]	;中央ミニオンの場所に指定する
+	add	240
+	ld	l,a
+	ld	a,[b_cFieldUnit]
+	adc	a,0
+	ld	h,a
+	;前処理
+	ld	a,[f_SelectCard]	;選択カードのカード番号を読み込み
+	ld	[rROMB0],a		;バンク切り替え
+	ld	a,[f_SelectCard + 1]
+	add	a,64
+	ld	b,a
+	ld	a,44
+	ld	c,a
+	;パラメーターのセット
+	;今回は中央ミニオンのアドレスに番号,HP,ATKをセットする
+	ld	a,[f_SelectCard]	;カード番号書き込み
+	ld	[hl+],a
+	ld	a,[f_SelectCard + 1]
+	ld	[hl+],a
+	inc	hl			;位相書き込み　今回は飛ばす
+	ld	a,[bc]			;ATK書き込み
+	inc	bc
+	ld	[hl+],a
+	ld	a,[bc]			;HP書き込み
+	inc	bc
+	ld	[hl+],a
+	
+	ld	a,1			;バンク切り替え
+	ld	[rROMB0],a
+	ret
+
+;ブレイクの処理
+;ブレイクが行われる場合に呼び出す
+;hl:ブレイク対象のアドレス
+;d:消去するバイト数
+Break:
+	;ブレイクしたカードの情報を入力する
+	;ユニットがあった場所を0でリセットする
+	xor	a
+	ld	b,a
+	ld	c,d
+	Call	Mem_Set
+	;スキル・ミニオンの場合、移動させる
+	;今回は除外のみなのでなし
+	ret

@@ -1,0 +1,273 @@
+;------------
+;	UnitBattle
+;	バトル画面の処理
+;	by yuyat
+
+;戦闘選択処理
+;今回は強制的に選択する
+bf_SetBattleSelect:
+	;自ユニットの位置を指定する
+	;うっかり誰もいないのにこの画面に移行しないよう気をつけようね！
+	ld	a,3
+	ld	[f_cBattleUnit],a
+	;相手ユニットの位置を指定する
+	;ブロッカーの有無によってミニオンかマスターか自動的に変更する
+	ld	a,[b_oFieldUnit + 1]	;中央ミニオンの場所に指定する
+	add	240
+	ld	l,a
+	ld	a,[b_oFieldUnit]
+	adc	a,0
+	ld	h,a
+	;カード番号を読み込む
+	ld	a,[hl]
+	cp	0
+	jp	z,.master		;もしフィールドにカードデータが存在しない場合、マスターにアタックする
+.minion
+	ld	a,3
+	ld	[f_oBattleUnit],a
+	jp	.endif
+.master
+	xor	a
+	ld	[f_oBattleUnit],a
+.endif
+	;
+	;戦闘処理へ移る
+	SetScene	bf_SetBattle
+	ret
+
+;0A3A
+;戦闘処理
+;ダメージ計算はここで行う
+bf_SetBattle:
+	;自分ダメージ計算
+	;自代入位置計算
+	call	bf_cTargetSetHL
+	;自HP代入
+	ld	a,[b_cFieldUnit + 1]	;自HPをbに代入　中央ミニオンの場所に指定する
+	add	a,4
+	add	a,l
+	ld	l,a
+	ld	a,[b_cFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	a,[hl]
+	ld	b,a
+	;相手代入位置計算
+	call	bf_oTargetSetHL
+	;相手ATK代入
+	ld	a,[b_oFieldUnit + 1]	;相手ATKをcに代入　中央ミニオンの場所に指定する
+	add	a,3
+	add	a,l
+	ld	l,a
+	ld	a,[b_oFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	a,[hl]
+	ld	c,a
+	;HP-ATK
+	ld	a,b
+	sub	a,c
+	jp	nc,.skipc
+	xor	a
+.skipc
+	ld	b,a
+	;計算後のHPをメモリに代入
+	;自代入位置計算
+	call	bf_cTargetSetHL
+	;自HP代入
+	ld	a,[b_cFieldUnit + 1]	;自HPをbに代入　中央ミニオンの場所に指定する
+	add	a,4
+	add	a,l
+	ld	l,a
+	ld	a,[b_cFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	;HP代入
+	ld	a,b
+	ld	[hl],a
+
+	;相手ダメージ計算
+	;相手代入位置計算
+	call	bf_oTargetSetHL
+	;相手HP代入
+	ld	a,[b_oFieldUnit + 1]	;相手HPをbに代入
+	add	a,4
+	add	a,l
+	ld	l,a
+	ld	a,[b_oFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	a,[hl]
+	ld	b,a
+	;自代入位置計算
+	call	bf_cTargetSetHL
+	;自ATK代入
+	ld	a,[b_cFieldUnit + 1]	;自ATKをcに代入
+	add	a,3
+	add	a,l
+	ld	l,a
+	ld	a,[b_cFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	a,[hl]
+	ld	c,a
+	;HP-ATK
+	ld	a,b
+	sub	a,c
+	jp	nc,.skipo
+	xor	a
+.skipo
+	ld	b,a
+
+	;計算後のHPをメモリに代入
+	;相手代入位置計算
+	call	bf_oTargetSetHL
+	;相手HP代入
+	ld	a,[b_oFieldUnit + 1]	;相手HPをbに代入
+	add	a,4
+	add	a,l
+	ld	l,a
+	ld	a,[b_oFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	;HP代入
+	ld	a,b
+	ld	[hl],a
+
+	;HP0になったとき、ブレイク処理を行う
+	;自ユニットのブレイク処理
+	call	bf_cTargetSetHL
+	;自アドレス代入
+	ld	a,[b_cFieldUnit + 1]	;自HPをbに代入
+	add	a,4
+	add	a,l
+	ld	l,a
+	ld	a,[b_cFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	a,[hl]
+	cp	0
+	jp	nz,.cnobreak
+	;HPが0であれば、ブレイク処理を実行する
+	call	bf_cTargetSetHL
+	;自アドレス代入
+	ld	a,[b_cFieldUnit + 1]
+	add	a,l
+	ld	l,a
+	ld	a,[b_cFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	d,80
+	call	Break
+.cnobreak
+
+	;相手ユニットのブレイク処理
+	call	bf_oTargetSetHL
+	;相手アドレス代入
+	ld	a,[b_oFieldUnit + 1]	;相手HPをbに代入
+	add	a,4
+	add	a,l
+	ld	l,a
+	ld	a,[b_oFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	a,[hl]
+	cp	0
+	jp	nz,.onobreak
+	;HPが0であれば、ブレイク処理を実行する
+	call	bf_oTargetSetHL
+	;相手アドレス代入
+	ld	a,[b_oFieldUnit + 1]
+	add	a,l
+	ld	l,a
+	ld	a,[b_oFieldUnit]
+	adc	a,0
+	add	a,h
+	ld	h,a
+	ld	d,80
+	call	Break
+.onobreak
+	;毎フレーム処理に移る
+	SetScene	bf_Battle
+	ret
+
+;毎フレーム行う処理　主に演出
+bf_Battle:
+	;ターンエンド処理へ移る（本来は手札画面）
+	SetScene	bf_SetEndPhase
+	;マスターが死んでいた場合、ゲームエンド処理を行う
+	;自HPの比較
+	ld	a,[b_fFieldUnit + 4]
+	cp	0
+	jp	nz,.cMasterAlive
+	SetScene	b_SetBattleEnd
+.cMasterAlive
+	;相手HPの比較
+	ld	a,[b_sFieldUnit + 4]
+	cp	0
+	jp	nz,.oMasterAlive
+	SetScene	b_SetBattleEnd
+.oMasterAlive
+	ret
+
+
+;HLに読み込み先アドレスを指定する
+;HLに80x[f_cBattleUnit]の計算結果を代入する
+bf_cTargetSetHL:
+	ld	d,5
+	ld	a,[f_cBattleUnit]
+	cp	0
+	jp	z,.skip
+	ld	e,a
+	xor	a
+.loop:
+	add	a,d
+	dec	e
+	jp	nz,.loop
+.skip:
+	ld	h,a
+	srl	h
+	srl	h
+	srl	h
+	srl	h
+	ld	l,a
+	sla	l
+	sla	l
+	sla	l
+	sla	l
+	ret
+
+;HLに読み込み先アドレスを指定する
+;HLに80x[f_oBattleUnit]の計算結果を代入する
+bf_oTargetSetHL:
+	ld	d,5
+	ld	a,[f_oBattleUnit]
+	cp	0
+	jp	z,.skip
+	ld	e,a
+	xor	a
+.loop:
+	add	a,d
+	dec	e
+	jp	nz,.loop
+.skip:
+	ld	h,a
+	srl	h
+	srl	h
+	srl	h
+	srl	h
+	ld	l,a
+	sla	l
+	sla	l
+	sla	l
+	sla	l
+	ret
